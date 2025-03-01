@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
 st.title("🔬 ANN Dashboard for Classification")
 
 # 📤 Load the fixed CSV file
-csv_path = "/mnt/data/nmrk2627_df_processed.csv"
+csv_path = "nmrk2627_df_processed.csv"
 df = pd.read_csv(csv_path)
 
 # Sidebar: Hyperparameters
