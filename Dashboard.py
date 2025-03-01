@@ -3,13 +3,13 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-import shap
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
+from sklearn.inspection import permutation_importance
 
 # 📌 Title
-st.title("🔬 ANN Dashboard")
+st.title("🔬 ANN Dashboard for Classification")
 
 # 📤 Load the fixed CSV file
 csv_path = "nmrk2627_df_processed.csv"
@@ -92,31 +92,24 @@ if st.button("🚀 Train Model"):
     ax_roc.legend(loc="lower right")
     st.pyplot(fig_roc)
 
-    # 📊 Prediction Distribution
-    st.subheader("📊 Distribution of Predictions")
-    fig_pred, ax_pred = plt.subplots()
-    sns.histplot(y_pred_prob, bins=30, kde=True, color="purple")
-    ax_pred.set_xlabel("Predicted Probability")
-    ax_pred.set_ylabel("Frequency")
-    st.pyplot(fig_pred)
+    # 📊 Feature Importance Using Permutation Importance
+    st.subheader("📊 Feature Importance (Permutation)")
+    perm_importance = permutation_importance(model, X_test, y_test, scoring="accuracy", n_repeats=10, random_state=42)
+    sorted_idx = perm_importance.importances_mean.argsort()
 
-    # 📊 Feature Importance (SHAP) - FIXED
-    st.subheader("🔍 Feature Importance (SHAP)")
+    fig_perm, ax_perm = plt.subplots(figsize=(8, 5))
+    ax_perm.barh(np.array(feature_columns)[sorted_idx], perm_importance.importances_mean[sorted_idx], color="orange")
+    ax_perm.set_xlabel("Mean Accuracy Decrease")
+    ax_perm.set_title("Feature Importance (Permutation)")
+    st.pyplot(fig_perm)
 
-    # Use SHAP Kernel Explainer for Neural Networks
-    explainer = shap.Explainer(model, X_train)
-    shap_values = explainer(X_test)
-
-    # Generate SHAP Summary Plot (Workaround for Streamlit)
-    fig_shap, ax_shap = plt.subplots(figsize=(8, 5))
-    shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
-    st.pyplot(fig_shap)
-
-    # 📊 Feature Correlation
-    st.subheader("📊 Feature Correlation Heatmap")
-    fig_corr, ax_corr = plt.subplots(figsize=(6, 4))
-    sns.heatmap(df.corr(), annot=True, fmt=".2f", cmap="coolwarm", ax=ax_corr)
-    st.pyplot(fig_corr)
+    # 📊 Class Distribution Pie Chart
+    st.subheader("📊 Class Distribution")
+    fig_pie, ax_pie = plt.subplots()
+    labels = ["Not Converted", "Converted"]
+    counts = [sum(y_train == 0), sum(y_train == 1)]
+    ax_pie.pie(counts, labels=labels, autopct="%1.1f%%", colors=["red", "green"], startangle=90)
+    st.pyplot(fig_pie)
 
     # 📊 Data Distribution Before Training (Pairplot)
     st.subheader("📊 Data Distribution Before Training")
