@@ -34,9 +34,10 @@ Once running, you can:
 ---
 
 ## 👥 Contributors  
-This project is developed by:  
+This project is developed by:
+- **Rushil Kohli**
 - **Navneet Mittal**  
-- **Rushil Kohli**  
+  
 
 ---
 
