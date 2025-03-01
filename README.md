@@ -33,16 +33,6 @@ Once running, you can:
 
 ---
 
-## 🏗️ Project Structure  
-📂 your-repo-name/
- ├── 📄 app.py               # Streamlit Dashboard Code
- ├── 📂 data/                # Data folder (if needed)
- ├── 📄 requirements.txt      # Required dependencies
- ├── 📄 README.md             # Project documentation
- ├── 📄 LICENSE               # Apache 2.0 License
-
----
-
 ## 👥 Contributors  
 This project is developed by:  
 - **Navneet Mittal**  
