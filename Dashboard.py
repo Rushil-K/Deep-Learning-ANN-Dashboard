@@ -54,8 +54,8 @@ if st.button("🚀 Train Model"):
         history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
     # Evaluate Model
-    y_pred_prob = model.predict(X_test)
-    y_pred = (y_pred_prob > 0.5).astype(int)
+    y_pred_prob = model.predict(X_test)  # Continuous probabilities
+    y_pred = (y_pred_prob > 0.5).astype(int)  # ✅ Convert probabilities to binary values
     accuracy = accuracy_score(y_test, y_pred)
 
     # Display Accuracy
