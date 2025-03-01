@@ -4,11 +4,12 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 import shap
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
 
 # 📌 Title
-st.title("🔬 ANN Dashboard for Classification")
+st.title("🔬 ANN Dashboard")
 
 # 📤 Load the fixed CSV file
 csv_path = "nmrk2627_df_processed.csv"
@@ -99,11 +100,15 @@ if st.button("🚀 Train Model"):
     ax_pred.set_ylabel("Frequency")
     st.pyplot(fig_pred)
 
-    # 📊 Feature Importance (SHAP)
+    # 📊 Feature Importance (SHAP) - FIXED
     st.subheader("🔍 Feature Importance (SHAP)")
+
+    # Use SHAP Kernel Explainer for Neural Networks
     explainer = shap.Explainer(model, X_train)
     shap_values = explainer(X_test)
-    fig_shap, ax_shap = plt.subplots()
+
+    # Generate SHAP Summary Plot (Workaround for Streamlit)
+    fig_shap, ax_shap = plt.subplots(figsize=(8, 5))
     shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
     st.pyplot(fig_shap)
 
