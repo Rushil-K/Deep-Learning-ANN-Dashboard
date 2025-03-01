@@ -6,7 +6,7 @@ import seaborn as sns
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
-from sklearn.inspection import permutation_importance
+from sklearn.ensemble import RandomForestClassifier
 
 # 📌 Title
 st.title("🔬 ANN Dashboard for Classification")
@@ -26,7 +26,7 @@ feature_columns = [col for col in df.columns if col != target_column]
 X = df[feature_columns]
 y = df[target_column]
 test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
 
 # 🔧 Hyperparameter Controls
 epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
@@ -92,16 +92,20 @@ if st.button("🚀 Train Model"):
     ax_roc.legend(loc="lower right")
     st.pyplot(fig_roc)
 
-    # 📊 Feature Importance Using Permutation Importance
-    st.subheader("📊 Feature Importance (Permutation)")
-    perm_importance = permutation_importance(model, X_test, y_test, scoring="accuracy", n_repeats=10, random_state=42)
-    sorted_idx = perm_importance.importances_mean.argsort()
+    # 📊 Feature Importance Using RandomForest Surrogate Model
+    st.subheader("📊 Feature Importance (RandomForest Surrogate)")
+    
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
+    rf_model.fit(X_train, y_train)
 
-    fig_perm, ax_perm = plt.subplots(figsize=(8, 5))
-    ax_perm.barh(np.array(feature_columns)[sorted_idx], perm_importance.importances_mean[sorted_idx], color="orange")
-    ax_perm.set_xlabel("Mean Accuracy Decrease")
-    ax_perm.set_title("Feature Importance (Permutation)")
-    st.pyplot(fig_perm)
+    feature_importance = rf_model.feature_importances_
+    sorted_idx = np.argsort(feature_importance)
+
+    fig_feat, ax_feat = plt.subplots(figsize=(8, 5))
+    ax_feat.barh(np.array(feature_columns)[sorted_idx], feature_importance[sorted_idx], color="orange")
+    ax_feat.set_xlabel("Importance Score")
+    ax_feat.set_title("Feature Importance (RandomForest)")
+    st.pyplot(fig_feat)
 
     # 📊 Class Distribution Pie Chart
     st.subheader("📊 Class Distribution")
