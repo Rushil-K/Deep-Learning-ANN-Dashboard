@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import roc_curve, auc
 
 # 🎯 Google Drive File ID
 file_id = "18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
@@ -19,7 +20,7 @@ def load_data_in_chunks(file_path, chunk_size=50000):
     chunks = []
     for chunk in pd.read_csv(file_path, compression='zip', encoding='ISO-8859-1', low_memory=False, chunksize=chunk_size):
         chunks.append(chunk)
-        if len(chunks) * chunk_size >= 500000:  # Limit to 500K rows for faster training
+        if len(chunks) * chunk_size >= 500000:  # Limit to 500K rows for efficiency
             break
     return pd.concat(chunks, ignore_index=True)
 
@@ -38,12 +39,6 @@ if 'Converted' in df.columns:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=552627)
 else:
     st.error("❌ Target column 'Converted' not found in dataset!")
-
-# 🚀 Optimize Data Loading with tf.data
-BUFFER_SIZE = 10000
-BATCH_SIZE = 32  # Default batch size
-train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).shuffle(BUFFER_SIZE).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 # 🎨 Streamlit UI
 st.title("🤖 Deep Learning ANN Dashboard")
@@ -83,40 +78,63 @@ model = create_model()
 # 🎯 Train Model Button
 if st.button("🚀 Train Model"):
     with st.spinner("Training in progress... ⏳"):
-        history = model.fit(train_dataset, epochs=min(epochs, 10), validation_data=test_dataset, verbose=1)
+        history = model.fit(X_train, y_train, epochs=min(epochs, 10), batch_size=batch_size, validation_data=(X_test, y_test), verbose=1)
+        
+        # 📌 Display Model Accuracy
+        final_train_acc = history.history['accuracy'][-1]
+        final_val_acc = history.history['val_accuracy'][-1]
+        st.success(f"✅ Final Train Accuracy: {final_train_acc:.4f} | Final Validation Accuracy: {final_val_acc:.4f}")
 
         # 📊 Plot Performance
         fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-        ax[0].plot(history.history['loss'], label='Train Loss')
-        ax[0].plot(history.history['val_loss'], label='Validation Loss')
+        ax[0].plot(history.history['loss'], label='Train Loss', color='red')
+        ax[0].plot(history.history['val_loss'], label='Validation Loss', color='blue')
         ax[0].legend()
         ax[0].set_title("📉 Loss Curve")
 
-        ax[1].plot(history.history['accuracy'], label='Train Accuracy')
-        ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy')
+        ax[1].plot(history.history['accuracy'], label='Train Accuracy', color='green')
+        ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy', color='orange')
         ax[1].legend()
         ax[1].set_title("📈 Accuracy Curve")
 
         st.pyplot(fig)
 
+        # 🎯 ROC Curve
+        y_pred_proba = model.predict(X_test).ravel()
+        fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
+        roc_auc = auc(fpr, tpr)
+
+        fig, ax = plt.subplots()
+        ax.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+        ax.plot([0, 1], [0, 1], color='gray', linestyle='--')
+        ax.set_xlim([0.0, 1.0])
+        ax.set_ylim([0.0, 1.05])
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_title('📊 ROC Curve')
+        ax.legend(loc="lower right")
+        st.pyplot(fig)
+
 # 🎨 Additional Creative Visuals
 st.subheader("📊 Data Insights")
+
+# 🔘 Pairplot for Feature Relations (Only using first 5 features for efficiency)
+st.subheader("📊 Feature Relations (Pairplot)")
+pairplot_features = df.iloc[:, :5]  # Limit to 5 columns for faster rendering
+sns.pairplot(pairplot_features)
+st.pyplot(plt)
 
 # 🔘 Pie Chart of Target Variable
 if 'Converted' in df.columns:
     fig, ax = plt.subplots()
-    df['Converted'].value_counts().plot.pie(autopct='%1.1f%%', colors=['#ff9999', '#66b3ff'], ax=ax)
+    df['Converted'].value_counts().plot.pie(autopct='%1.1f%%', colors=['#ff9999', '#66b3ff'], ax=ax, wedgeprops={'edgecolor': 'black'})
     ax.set_title("🔘 Converted Distribution")
     st.pyplot(fig)
 
-# 📊 Horizontal Bar Chart of First 10 Features
-st.subheader("📊 Feature Distributions")
+# 📊 Horizontal Bar Chart of Feature Averages
+st.subheader("📊 Feature Averages")
 feature_means = df.iloc[:, :10].mean().sort_values()
 fig, ax = plt.subplots()
-feature_means.plot(kind='barh', color='skyblue', ax=ax)
+feature_means.plot(kind='barh', color=sns.color_palette("coolwarm", len(feature_means)), ax=ax)
 ax.set_title("📊 Top 10 Feature Averages")
 st.pyplot(fig)
-
-# ✅ GPU Check
-gpu_available = len(tf.config.experimental.list_physical_devices('GPU')) > 0
-st.sidebar.write(f"⚡ GPU Available: {'✅ Yes' if gpu_available else '❌ No'}")
