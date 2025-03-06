@@ -13,37 +13,44 @@ from sklearn.ensemble import RandomForestClassifier
 # 📌 Title
 st.title("🔬 ANN Dashboard for Classification")
 
-# 📤 Load the CSV file from Google Drive
+# ✅ Correct Google Drive direct download link
 csv_url = "https://drive.google.com/uc?id=18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
 
 @st.cache_data
 def load_data(url):
-    response = requests.get(url)
-    response.raise_for_status()  # Ensure successful response
-    df = pd.read_csv(BytesIO(response.content), encoding="utf-8")  # Handle encoding issues
-    return df
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Ensure it's a valid response
 
-# Try loading the data
-try:
-    df = load_data(csv_url)
-except Exception as e:
-    st.error(f"❌ Error loading CSV file: {e}")
-    st.stop()
+        # ✅ Check if the response is HTML (virus scan page)
+        if "text/html" in response.headers["Content-Type"]:
+            st.error("🚨 Google Drive returned an HTML file instead of a CSV! Fix the link.")
+            st.stop()
 
-# Display dataset preview
-st.subheader("📄 Dataset Preview")
-st.write(df.head())
+        # ✅ Read CSV with UTF-8 encoding
+        df = pd.read_csv(BytesIO(response.content), encoding="utf-8")
+        return df
+    except Exception as e:
+        st.error(f"❌ Error loading CSV: {e}")
+        st.stop()
 
-# Display column names
+# Load the dataset
+df = load_data(csv_url)
+
+# ✅ Debugging: Display available columns
 st.write("🔍 Available Columns:", list(df.columns))
 
-# Ensure the target column exists
-target_column = "Converted"  # Adjust if necessary
+# ✅ Fix Target Column Issue
+target_column = "Converted"  # Change this if your target column is named differently
 if target_column not in df.columns:
-    st.error(f"⚠️ Error: Target column '{target_column}' not found! Please check available columns above.")
-    st.stop()  # Stop execution if column is missing
+    st.error(f"⚠️ Error: Target column '{target_column}' not found! Please check dataset structure.")
+    st.write("🔍 Available Columns:", list(df.columns))
+    st.stop()
 
-# Define feature columns
+# Sidebar: Hyperparameters
+st.sidebar.header("⚙️ Model Hyperparameters")
+
+# Define feature columns (excluding target column)
 feature_columns = [col for col in df.columns if col != target_column]
 
 # Split data
@@ -52,8 +59,7 @@ y = df[target_column]
 test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
 
-# Sidebar: Hyperparameters
-st.sidebar.header("⚙️ Model Hyperparameters")
+# 🔧 Hyperparameter Controls
 epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
 batch_size = st.sidebar.selectbox("📦 Batch Size", [16, 32, 64, 128], index=1)
 neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
@@ -80,10 +86,11 @@ if st.button("🚀 Train Model"):
         history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
     # Evaluate Model
-    y_pred_prob = model.predict(X_test)
-    y_pred = (y_pred_prob > 0.5).astype(int)
+    y_pred_prob = model.predict(X_test)  # Continuous probabilities
+    y_pred = (y_pred_prob > 0.5).astype(int)  # ✅ Convert probabilities to binary values
     accuracy = accuracy_score(y_test, y_pred)
 
+    # Display Accuracy
     st.success(f"✅ Test Accuracy: {accuracy:.4f}")
 
     # 📊 Training Performance Plot
@@ -96,7 +103,7 @@ if st.button("🚀 Train Model"):
     ax_hist.legend()
     st.pyplot(fig_hist)
 
-    # 📊 Confusion Matrix
+    # 📊 Confusion Matrix with Better Aesthetics
     st.subheader("📊 Confusion Matrix")
     cm = confusion_matrix(y_test, y_pred)
     fig_cm, ax_cm = plt.subplots(figsize=(5, 4))
@@ -119,7 +126,7 @@ if st.button("🚀 Train Model"):
     ax_roc.legend(loc="lower right")
     st.pyplot(fig_roc)
 
-    # 📊 Feature Importance Using RandomForest
+    # 📊 Feature Importance Using RandomForest Surrogate Model
     st.subheader("📊 Feature Importance (RandomForest Surrogate)")
     rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
     rf_model.fit(X_train, y_train)
@@ -140,9 +147,3 @@ if st.button("🚀 Train Model"):
     counts = [sum(y_train == 0), sum(y_train == 1)]
     ax_pie.pie(counts, labels=labels, autopct="%1.1f%%", colors=["red", "green"], startangle=90)
     st.pyplot(fig_pie)
-
-    # 📊 Data Distribution Before Training
-    st.subheader("📊 Data Distribution Before Training")
-    sample_df = df.sample(min(1000, len(df)))  # Adjust sample size for efficiency
-    fig_pair = sns.pairplot(sample_df, diag_kind="kde")
-    st.pyplot(fig_pair)
