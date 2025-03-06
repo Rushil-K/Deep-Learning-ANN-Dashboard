@@ -4,7 +4,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import gdown
+import requests
 from io import BytesIO
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
@@ -18,19 +18,26 @@ csv_url = "https://drive.google.com/uc?id=18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
 
 @st.cache_data
 def load_data(url):
-    file_path = "dataset.csv"
-    gdown.download(url, file_path, quiet=False)
-    df = pd.read_csv(file_path)
-    df.columns = df.columns.str.strip().str.lower()  # Standardize column names
-    return df
+    try:
+        response = requests.get(url)
+        df = pd.read_csv(BytesIO(response.content), encoding="ISO-8859-1", errors="replace")
+        return df
+    except Exception as e:
+        st.error(f"Error loading CSV file: {e}")
+        return None
 
 df = load_data(csv_url)
 
-# Sidebar: Hyperparameters
-st.sidebar.header("⚙️ Model Hyperparameters")
+if df is None:
+    st.stop()
 
-# Define target and feature columns
-target_column = "converted"  # Ensure lowercase
+# Ensure the target column exists
+target_column = "Converted"  # Modify this if your actual target column has a different name
+if target_column not in df.columns:
+    st.error(f"Target column '{target_column}' not found in dataset. Available columns: {list(df.columns)}")
+    st.stop()
+
+# Define feature columns
 feature_columns = [col for col in df.columns if col != target_column]
 
 # Split data
@@ -39,10 +46,8 @@ y = df[target_column]
 test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
 
-# Convert to NumPy
-X_train, X_test, y_train, y_test = X_train.values, X_test.values, y_train.values, y_test.values
-
 # 🔧 Hyperparameter Controls
+st.sidebar.header("⚙️ Model Hyperparameters")
 epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
 batch_size = st.sidebar.selectbox("📦 Batch Size", [16, 32, 64, 128], index=1)
 neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
@@ -133,7 +138,7 @@ if st.button("🚀 Train Model"):
 
     # 📊 Data Distribution Before Training (Pairplot)
     st.subheader("📊 Data Distribution Before Training")
-    numeric_columns = df.select_dtypes(include=[np.number]).columns
-    sample_df = df[numeric_columns].sample(min(500, len(df)))  # Adjust sample size for efficiency
+    sample_df = df.sample(min(1000, len(df)))  # Adjust sample size for efficiency
     fig_pair = sns.pairplot(sample_df, diag_kind="kde")
     st.pyplot(fig_pair)
+
