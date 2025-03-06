@@ -18,134 +18,131 @@ csv_url = "https://drive.google.com/uc?id=18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
 
 @st.cache_data
 def load_data(url):
-    try:
-        response = requests.get(url)
-        raw_data = BytesIO(response.content)
-        
-        # Try UTF-8 first
-        try:
-            df = pd.read_csv(raw_data, encoding="utf-8")
-        except UnicodeDecodeError:
-            st.warning("UTF-8 failed. Trying ISO-8859-1 encoding.")
-            raw_data.seek(0)  # Reset buffer
-            df = pd.read_csv(raw_data, encoding="ISO-8859-1")
+    response = requests.get(url)
+    response.raise_for_status()  # Ensure successful response
+    df = pd.read_csv(BytesIO(response.content), encoding="utf-8")  # Handle encoding issues
+    return df
 
-        return df
-    except Exception as e:
-        st.error(f"Error loading CSV file: {e}")
-        return None
+# Try loading the data
+try:
+    df = load_data(csv_url)
+except Exception as e:
+    st.error(f"❌ Error loading CSV file: {e}")
+    st.stop()
 
-df = load_data(csv_url)
+# Display dataset preview
+st.subheader("📄 Dataset Preview")
+st.write(df.head())
 
-if df is not None:
-    # Sidebar: Hyperparameters
-    st.sidebar.header("⚙️ Model Hyperparameters")
+# Display column names
+st.write("🔍 Available Columns:", list(df.columns))
 
-    # Define target and feature columns
-    target_column = "Converted"  # Assuming 'Converted' is the target
-    if target_column not in df.columns:
-        st.error(f"Error: Target column '{target_column}' not found in dataset!")
-    else:
-        feature_columns = [col for col in df.columns if col != target_column]
+# Ensure the target column exists
+target_column = "Converted"  # Adjust if necessary
+if target_column not in df.columns:
+    st.error(f"⚠️ Error: Target column '{target_column}' not found! Please check available columns above.")
+    st.stop()  # Stop execution if column is missing
 
-        # Split data
-        X = df[feature_columns]
-        y = df[target_column]
-        test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
+# Define feature columns
+feature_columns = [col for col in df.columns if col != target_column]
 
-        # 🔧 Hyperparameter Controls
-        epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
-        batch_size = st.sidebar.selectbox("📦 Batch Size", [16, 32, 64, 128], index=1)
-        neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
-        neurons_layer2 = st.sidebar.slider("🔢 Neurons in Layer 2", 16, 128, 32)
-        dropout_rate = st.sidebar.slider("💧 Dropout Rate", 0.0, 0.5, 0.2)
-        activation_function = st.sidebar.selectbox("⚡ Activation Function", ["relu", "tanh", "sigmoid"], index=0)
-        optimizer = st.sidebar.selectbox("🚀 Optimizer", ["adam", "sgd", "rmsprop"], index=0)
+# Split data
+X = df[feature_columns]
+y = df[target_column]
+test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
 
-        # ANN Model
-        model = tf.keras.models.Sequential([
-            tf.keras.layers.Dense(neurons_layer1, activation=activation_function, input_shape=(X_train.shape[1],)),
-            tf.keras.layers.Dropout(dropout_rate),
-            tf.keras.layers.Dense(neurons_layer2, activation=activation_function),
-            tf.keras.layers.Dropout(dropout_rate),
-            tf.keras.layers.Dense(1, activation='sigmoid')
-        ])
+# Sidebar: Hyperparameters
+st.sidebar.header("⚙️ Model Hyperparameters")
+epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
+batch_size = st.sidebar.selectbox("📦 Batch Size", [16, 32, 64, 128], index=1)
+neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
+neurons_layer2 = st.sidebar.slider("🔢 Neurons in Layer 2", 16, 128, 32)
+dropout_rate = st.sidebar.slider("💧 Dropout Rate", 0.0, 0.5, 0.2)
+activation_function = st.sidebar.selectbox("⚡ Activation Function", ["relu", "tanh", "sigmoid"], index=0)
+optimizer = st.sidebar.selectbox("🚀 Optimizer", ["adam", "sgd", "rmsprop"], index=0)
 
-        # Compile Model
-        model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
+# ANN Model
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Dense(neurons_layer1, activation=activation_function, input_shape=(X_train.shape[1],)),
+    tf.keras.layers.Dropout(dropout_rate),
+    tf.keras.layers.Dense(neurons_layer2, activation=activation_function),
+    tf.keras.layers.Dropout(dropout_rate),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
 
-        # Train Model Button
-        if st.button("🚀 Train Model"):
-            with st.spinner("Training in Progress..."):
-                history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+# Compile Model
+model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
-            # Evaluate Model
-            y_pred_prob = model.predict(X_test)  # Continuous probabilities
-            y_pred = (y_pred_prob > 0.5).astype(int)  # ✅ Convert probabilities to binary values
-            accuracy = accuracy_score(y_test, y_pred)
+# Train Model Button
+if st.button("🚀 Train Model"):
+    with st.spinner("Training in Progress..."):
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
-            # Display Accuracy
-            st.success(f"✅ Test Accuracy: {accuracy:.4f}")
+    # Evaluate Model
+    y_pred_prob = model.predict(X_test)
+    y_pred = (y_pred_prob > 0.5).astype(int)
+    accuracy = accuracy_score(y_test, y_pred)
 
-            # 📊 Training Performance Plot
-            st.subheader("📈 Loss vs Accuracy Over Epochs")
-            fig_hist, ax_hist = plt.subplots()
-            ax_hist.plot(history.history['accuracy'], label="Training Accuracy", color="blue")
-            ax_hist.plot(history.history['loss'], label="Training Loss", color="red")
-            ax_hist.set_xlabel("Epochs")
-            ax_hist.set_ylabel("Score")
-            ax_hist.legend()
-            st.pyplot(fig_hist)
+    st.success(f"✅ Test Accuracy: {accuracy:.4f}")
 
-            # 📊 Confusion Matrix with Better Aesthetics
-            st.subheader("📊 Confusion Matrix")
-            cm = confusion_matrix(y_test, y_pred)
-            fig_cm, ax_cm = plt.subplots(figsize=(5, 4))
-            sns.heatmap(cm, annot=True, fmt="d", cmap="coolwarm", cbar=False, 
-                        xticklabels=["Negative", "Positive"], yticklabels=["Negative", "Positive"])
-            ax_cm.set_xlabel("Predicted Label")
-            ax_cm.set_ylabel("True Label")
-            ax_cm.set_title("Confusion Matrix")
-            st.pyplot(fig_cm)
+    # 📊 Training Performance Plot
+    st.subheader("📈 Loss vs Accuracy Over Epochs")
+    fig_hist, ax_hist = plt.subplots()
+    ax_hist.plot(history.history['accuracy'], label="Training Accuracy", color="blue")
+    ax_hist.plot(history.history['loss'], label="Training Loss", color="red")
+    ax_hist.set_xlabel("Epochs")
+    ax_hist.set_ylabel("Score")
+    ax_hist.legend()
+    st.pyplot(fig_hist)
 
-            # 📊 ROC Curve
-            st.subheader("📈 ROC Curve & AUC Score")
-            fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
-            roc_auc = auc(fpr, tpr)
-            fig_roc, ax_roc = plt.subplots()
-            ax_roc.plot(fpr, tpr, color="blue", label=f"AUC = {roc_auc:.2f}")
-            ax_roc.plot([0, 1], [0, 1], color="gray", linestyle="--")  # Diagonal reference line
-            ax_roc.set_xlabel("False Positive Rate")
-            ax_roc.set_ylabel("True Positive Rate")
-            ax_roc.legend(loc="lower right")
-            st.pyplot(fig_roc)
+    # 📊 Confusion Matrix
+    st.subheader("📊 Confusion Matrix")
+    cm = confusion_matrix(y_test, y_pred)
+    fig_cm, ax_cm = plt.subplots(figsize=(5, 4))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="coolwarm", cbar=False, 
+                xticklabels=["Negative", "Positive"], yticklabels=["Negative", "Positive"])
+    ax_cm.set_xlabel("Predicted Label")
+    ax_cm.set_ylabel("True Label")
+    ax_cm.set_title("Confusion Matrix")
+    st.pyplot(fig_cm)
 
-            # 📊 Feature Importance Using RandomForest Surrogate Model
-            st.subheader("📊 Feature Importance (RandomForest Surrogate)")
-            rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
-            rf_model.fit(X_train, y_train)
+    # 📊 ROC Curve
+    st.subheader("📈 ROC Curve & AUC Score")
+    fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+    roc_auc = auc(fpr, tpr)
+    fig_roc, ax_roc = plt.subplots()
+    ax_roc.plot(fpr, tpr, color="blue", label=f"AUC = {roc_auc:.2f}")
+    ax_roc.plot([0, 1], [0, 1], color="gray", linestyle="--")  # Diagonal reference line
+    ax_roc.set_xlabel("False Positive Rate")
+    ax_roc.set_ylabel("True Positive Rate")
+    ax_roc.legend(loc="lower right")
+    st.pyplot(fig_roc)
 
-            feature_importance = rf_model.feature_importances_
-            sorted_idx = np.argsort(feature_importance)
+    # 📊 Feature Importance Using RandomForest
+    st.subheader("📊 Feature Importance (RandomForest Surrogate)")
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
+    rf_model.fit(X_train, y_train)
 
-            fig_feat, ax_feat = plt.subplots(figsize=(8, 5))
-            ax_feat.barh(np.array(feature_columns)[sorted_idx], feature_importance[sorted_idx], color="orange")
-            ax_feat.set_xlabel("Importance Score")
-            ax_feat.set_title("Feature Importance (RandomForest)")
-            st.pyplot(fig_feat)
+    feature_importance = rf_model.feature_importances_
+    sorted_idx = np.argsort(feature_importance)
 
-            # 📊 Class Distribution Pie Chart
-            st.subheader("📊 Class Distribution")
-            fig_pie, ax_pie = plt.subplots()
-            labels = ["Not Converted", "Converted"]
-            counts = [sum(y_train == 0), sum(y_train == 1)]
-            ax_pie.pie(counts, labels=labels, autopct="%1.1f%%", colors=["red", "green"], startangle=90)
-            st.pyplot(fig_pie)
+    fig_feat, ax_feat = plt.subplots(figsize=(8, 5))
+    ax_feat.barh(np.array(feature_columns)[sorted_idx], feature_importance[sorted_idx], color="orange")
+    ax_feat.set_xlabel("Importance Score")
+    ax_feat.set_title("Feature Importance (RandomForest)")
+    st.pyplot(fig_feat)
 
-            # 📊 Data Distribution Before Training (Pairplot)
-            st.subheader("📊 Data Distribution Before Training")
-            sample_df = df.sample(min(1000, len(df)))  # Adjust sample size for efficiency
-            fig_pair = sns.pairplot(sample_df, diag_kind="kde")
-            st.pyplot(fig_pair)
+    # 📊 Class Distribution Pie Chart
+    st.subheader("📊 Class Distribution")
+    fig_pie, ax_pie = plt.subplots()
+    labels = ["Not Converted", "Converted"]
+    counts = [sum(y_train == 0), sum(y_train == 1)]
+    ax_pie.pie(counts, labels=labels, autopct="%1.1f%%", colors=["red", "green"], startangle=90)
+    st.pyplot(fig_pie)
 
+    # 📊 Data Distribution Before Training
+    st.subheader("📊 Data Distribution Before Training")
+    sample_df = df.sample(min(1000, len(df)))  # Adjust sample size for efficiency
+    fig_pair = sns.pairplot(sample_df, diag_kind="kde")
+    st.pyplot(fig_pair)
