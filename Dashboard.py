@@ -4,62 +4,53 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import requests
-from io import BytesIO
+import gdown
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
 from sklearn.ensemble import RandomForestClassifier
 
-# 📌 Title
+# 📌 Streamlit Title
 st.title("🔬 ANN Dashboard for Classification")
 
-# ✅ Correct Google Drive direct download link
-csv_url = "https://drive.google.com/uc?id=18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
+# 📤 Google Drive CSV Download (Fix)
+file_id = "18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
+csv_filename = "data.csv"
 
 @st.cache_data
-def load_data(url):
+def load_data():
+    if not os.path.exists(csv_filename):
+        gdown.download(f"https://drive.google.com/uc?id={file_id}", csv_filename, quiet=False)
+    
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Ensure it's a valid response
+        df = pd.read_csv(csv_filename, encoding="utf-8")
+    except UnicodeDecodeError:
+        df = pd.read_csv(csv_filename, encoding="ISO-8859-1")
 
-        # ✅ Check if the response is HTML (virus scan page)
-        if "text/html" in response.headers["Content-Type"]:
-            st.error("🚨 Google Drive returned an HTML file instead of a CSV! Fix the link.")
-            st.stop()
+    return df
 
-        # ✅ Read CSV with UTF-8 encoding
-        df = pd.read_csv(BytesIO(response.content), encoding="utf-8")
-        return df
-    except Exception as e:
-        st.error(f"❌ Error loading CSV: {e}")
-        st.stop()
+df = load_data()
 
-# Load the dataset
-df = load_data(csv_url)
+# ✅ Show dataset preview
+st.write("### 📂 Dataset Preview", df.head())
 
-# ✅ Debugging: Display available columns
-st.write("🔍 Available Columns:", list(df.columns))
-
-# ✅ Fix Target Column Issue
-target_column = "Converted"  # Change this if your target column is named differently
+# 🚨 Validate target column exists
+target_column = "Converted"  
 if target_column not in df.columns:
-    st.error(f"⚠️ Error: Target column '{target_column}' not found! Please check dataset structure.")
-    st.write("🔍 Available Columns:", list(df.columns))
+    st.error(f"⚠️ Error: Target column '{target_column}' not found! Available columns: {list(df.columns)}")
     st.stop()
 
-# Sidebar: Hyperparameters
-st.sidebar.header("⚙️ Model Hyperparameters")
-
-# Define feature columns (excluding target column)
+# Feature columns (excluding target)
 feature_columns = [col for col in df.columns if col != target_column]
 
-# Split data
+# Split dataset
 X = df[feature_columns]
 y = df[target_column]
 test_size = st.sidebar.slider("🧪 Test Set Ratio", 0.1, 0.5, 0.2)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=552627)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
-# 🔧 Hyperparameter Controls
+# 🔧 Model Hyperparameters
+st.sidebar.header("⚙️ Model Hyperparameters")
 epochs = st.sidebar.slider("⏳ Epochs", 5, 100, 10)
 batch_size = st.sidebar.selectbox("📦 Batch Size", [16, 32, 64, 128], index=1)
 neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
@@ -68,7 +59,7 @@ dropout_rate = st.sidebar.slider("💧 Dropout Rate", 0.0, 0.5, 0.2)
 activation_function = st.sidebar.selectbox("⚡ Activation Function", ["relu", "tanh", "sigmoid"], index=0)
 optimizer = st.sidebar.selectbox("🚀 Optimizer", ["adam", "sgd", "rmsprop"], index=0)
 
-# ANN Model
+# 🏗️ Build ANN Model
 model = tf.keras.models.Sequential([
     tf.keras.layers.Dense(neurons_layer1, activation=activation_function, input_shape=(X_train.shape[1],)),
     tf.keras.layers.Dropout(dropout_rate),
@@ -80,20 +71,19 @@ model = tf.keras.models.Sequential([
 # Compile Model
 model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
-# Train Model Button
+# 🚀 Train Model Button
 if st.button("🚀 Train Model"):
     with st.spinner("Training in Progress..."):
         history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
 
     # Evaluate Model
-    y_pred_prob = model.predict(X_test)  # Continuous probabilities
-    y_pred = (y_pred_prob > 0.5).astype(int)  # ✅ Convert probabilities to binary values
+    y_pred_prob = model.predict(X_test)
+    y_pred = (y_pred_prob > 0.5).astype(int)
     accuracy = accuracy_score(y_test, y_pred)
 
-    # Display Accuracy
     st.success(f"✅ Test Accuracy: {accuracy:.4f}")
 
-    # 📊 Training Performance Plot
+    # 📈 Plot Training Performance
     st.subheader("📈 Loss vs Accuracy Over Epochs")
     fig_hist, ax_hist = plt.subplots()
     ax_hist.plot(history.history['accuracy'], label="Training Accuracy", color="blue")
@@ -103,7 +93,7 @@ if st.button("🚀 Train Model"):
     ax_hist.legend()
     st.pyplot(fig_hist)
 
-    # 📊 Confusion Matrix with Better Aesthetics
+    # 📊 Confusion Matrix
     st.subheader("📊 Confusion Matrix")
     cm = confusion_matrix(y_test, y_pred)
     fig_cm, ax_cm = plt.subplots(figsize=(5, 4))
@@ -114,23 +104,22 @@ if st.button("🚀 Train Model"):
     ax_cm.set_title("Confusion Matrix")
     st.pyplot(fig_cm)
 
-    # 📊 ROC Curve
+    # 📈 ROC Curve
     st.subheader("📈 ROC Curve & AUC Score")
     fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
     roc_auc = auc(fpr, tpr)
     fig_roc, ax_roc = plt.subplots()
     ax_roc.plot(fpr, tpr, color="blue", label=f"AUC = {roc_auc:.2f}")
-    ax_roc.plot([0, 1], [0, 1], color="gray", linestyle="--")  # Diagonal reference line
+    ax_roc.plot([0, 1], [0, 1], color="gray", linestyle="--")
     ax_roc.set_xlabel("False Positive Rate")
     ax_roc.set_ylabel("True Positive Rate")
     ax_roc.legend(loc="lower right")
     st.pyplot(fig_roc)
 
-    # 📊 Feature Importance Using RandomForest Surrogate Model
-    st.subheader("📊 Feature Importance (RandomForest Surrogate)")
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
+    # 📊 Feature Importance Using RandomForest
+    st.subheader("📊 Feature Importance (RandomForest)")
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
     rf_model.fit(X_train, y_train)
-
     feature_importance = rf_model.feature_importances_
     sorted_idx = np.argsort(feature_importance)
 
@@ -140,10 +129,16 @@ if st.button("🚀 Train Model"):
     ax_feat.set_title("Feature Importance (RandomForest)")
     st.pyplot(fig_feat)
 
-    # 📊 Class Distribution Pie Chart
+    # 📊 Class Distribution
     st.subheader("📊 Class Distribution")
     fig_pie, ax_pie = plt.subplots()
     labels = ["Not Converted", "Converted"]
     counts = [sum(y_train == 0), sum(y_train == 1)]
     ax_pie.pie(counts, labels=labels, autopct="%1.1f%%", colors=["red", "green"], startangle=90)
     st.pyplot(fig_pie)
+
+    # 📊 Data Distribution Before Training (Pairplot)
+    st.subheader("📊 Data Distribution Before Training")
+    sample_df = df.sample(min(1000, len(df)))  # Adjust sample size for efficiency
+    fig_pair = sns.pairplot(sample_df, diag_kind="kde")
+    st.pyplot(fig_pair)
