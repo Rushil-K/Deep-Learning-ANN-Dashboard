@@ -4,6 +4,8 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import requests
+from io import BytesIO
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
 from sklearn.ensemble import RandomForestClassifier
@@ -11,9 +13,14 @@ from sklearn.ensemble import RandomForestClassifier
 # 📌 Title
 st.title("🔬 ANN Dashboard for Classification")
 
-# 📤 Load the fixed CSV file
-csv_path = "nmrk2627_df_processed.csv"
-df = pd.read_csv(csv_path)
+# 📤 Load the CSV file from Google Drive
+csv_url = "https://drive.google.com/uc?id=18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
+@st.cache_data
+def load_data(url):
+    response = requests.get(url)
+    return pd.read_csv(BytesIO(response.content))
+
+df = load_data(csv_url)
 
 # Sidebar: Hyperparameters
 st.sidebar.header("⚙️ Model Hyperparameters")
@@ -35,6 +42,7 @@ neurons_layer1 = st.sidebar.slider("🔢 Neurons in Layer 1", 16, 128, 64)
 neurons_layer2 = st.sidebar.slider("🔢 Neurons in Layer 2", 16, 128, 32)
 dropout_rate = st.sidebar.slider("💧 Dropout Rate", 0.0, 0.5, 0.2)
 activation_function = st.sidebar.selectbox("⚡ Activation Function", ["relu", "tanh", "sigmoid"], index=0)
+optimizer = st.sidebar.selectbox("🚀 Optimizer", ["adam", "sgd", "rmsprop"], index=0)
 
 # ANN Model
 model = tf.keras.models.Sequential([
@@ -46,7 +54,7 @@ model = tf.keras.models.Sequential([
 ])
 
 # Compile Model
-model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
 # Train Model Button
 if st.button("🚀 Train Model"):
@@ -71,13 +79,15 @@ if st.button("🚀 Train Model"):
     ax_hist.legend()
     st.pyplot(fig_hist)
 
-    # 📊 Confusion Matrix
+    # 📊 Confusion Matrix with Better Aesthetics
     st.subheader("📊 Confusion Matrix")
     cm = confusion_matrix(y_test, y_pred)
-    fig_cm, ax_cm = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Negative", "Positive"], yticklabels=["Negative", "Positive"])
-    plt.xlabel("Predicted Label")
-    plt.ylabel("True Label")
+    fig_cm, ax_cm = plt.subplots(figsize=(5, 4))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="coolwarm", cbar=False, 
+                xticklabels=["Negative", "Positive"], yticklabels=["Negative", "Positive"])
+    ax_cm.set_xlabel("Predicted Label")
+    ax_cm.set_ylabel("True Label")
+    ax_cm.set_title("Confusion Matrix")
     st.pyplot(fig_cm)
 
     # 📊 ROC Curve
@@ -94,7 +104,6 @@ if st.button("🚀 Train Model"):
 
     # 📊 Feature Importance Using RandomForest Surrogate Model
     st.subheader("📊 Feature Importance (RandomForest Surrogate)")
-    
     rf_model = RandomForestClassifier(n_estimators=100, random_state=552627)
     rf_model.fit(X_train, y_train)
 
