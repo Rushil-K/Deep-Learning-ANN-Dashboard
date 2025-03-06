@@ -4,9 +4,11 @@ import numpy as np
 import gdown
 import tensorflow as tf
 from tensorflow import keras
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 # 🎯 Download dataset from Google Drive
 file_id = "18_IlD33FyWSy1kSSEaCBfmAeyQCXqaV1"
@@ -35,7 +37,7 @@ if 'Converted' in df.columns:
 else:
     st.error("⚠️ Target column 'Converted' not found in dataset!")
 
-# 🎨 Streamlit UI with aesthetics
+# 🎨 Streamlit UI
 st.title("🚀 Deep Learning ANN Dashboard")
 st.markdown("### 📊 Model Training & Performance Visualization")
 
@@ -48,6 +50,20 @@ activation_function = st.sidebar.selectbox("⚡ Activation Function", ['relu', '
 num_layers = st.sidebar.slider("🏗️ Number of Hidden Layers", 1, 5, 3)
 neurons_per_layer = st.sidebar.slider("🧠 Neurons per Layer", 8, 256, 64, step=8)
 optimizer_choice = st.sidebar.selectbox("⚙️ Optimizer", ["adam", "sgd", "rmsprop"], index=0)
+
+# 📊 Data Visualization: Pairplot (Sampling to avoid lag)
+st.markdown("## 🔍 Data Exploration")
+st.write("### 📌 Pairplot of Selected Features")
+sampled_df = df.sample(n=500, random_state=552627)  # Reducing sample size for performance
+sns.pairplot(sampled_df, hue='Converted', diag_kind='kde')
+st.pyplot()
+
+# 📈 Feature Distribution
+st.markdown("## 📊 Feature Distribution")
+fig, ax = plt.subplots(figsize=(12, 6))
+sampled_df.hist(ax=ax, bins=20, color='teal', edgecolor='black')
+plt.tight_layout()
+st.pyplot(fig)
 
 # 🔧 Build ANN model
 def create_model():
@@ -67,30 +83,41 @@ def create_model():
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     return model
 
-model = create_model()
-st.write("📝 **Model Summary:**")
-st.text(model.summary())
+# "Train Model" Button
+if st.button("🚀 Train Model"):
+    st.write("📝 **Model Summary:**")
+    model = create_model()
+    st.text(model.summary())
 
-# 🚀 Train model
-with st.spinner("⏳ Training the model... Please wait!"):
-    history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1, validation_data=(X_test, y_test))
+    # 🚀 Train model
+    with st.spinner("⏳ Training the model... Please wait!"):
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1, validation_data=(X_test, y_test))
 
-# 📈 Plot performance
-st.markdown("## 📊 Training Performance")
+    # 📈 Plot performance
+    st.markdown("## 📊 Training Performance")
 
-fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-ax[0].plot(history.history['loss'], label='Train Loss', color='red', linestyle='dashed', marker='o')
-ax[0].plot(history.history['val_loss'], label='Validation Loss', color='blue', marker='o')
-ax[0].legend()
-ax[0].set_title("📉 Loss Curve")
-ax[0].grid()
+    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+    ax[0].plot(history.history['loss'], label='Train Loss', color='red', linestyle='dashed', marker='o')
+    ax[0].plot(history.history['val_loss'], label='Validation Loss', color='blue', marker='o')
+    ax[0].legend()
+    ax[0].set_title("📉 Loss Curve")
+    ax[0].grid()
 
-ax[1].plot(history.history['accuracy'], label='Train Accuracy', color='green', linestyle='dashed', marker='o')
-ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy', color='purple', marker='o')
-ax[1].legend()
-ax[1].set_title("📈 Accuracy Curve")
-ax[1].grid()
+    ax[1].plot(history.history['accuracy'], label='Train Accuracy', color='green', linestyle='dashed', marker='o')
+    ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy', color='purple', marker='o')
+    ax[1].legend()
+    ax[1].set_title("📈 Accuracy Curve")
+    ax[1].grid()
 
-st.pyplot(fig)
+    st.pyplot(fig)
 
-st.success("✅ Training Completed Successfully!")
+    # 🎯 Confusion Matrix
+    st.markdown("## 🎯 Model Evaluation - Confusion Matrix")
+    y_pred = (model.predict(X_test) > 0.5).astype("int32")
+    cm = confusion_matrix(y_test, y_pred)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(ax=ax, cmap="Blues")
+    st.pyplot(fig)
+
+    st.success("✅ Training Completed Successfully!")
